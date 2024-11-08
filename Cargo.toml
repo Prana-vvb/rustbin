@@ -6,5 +6,5 @@ edition = "2021"
 [dependencies]
 warp = "0.3"
 tokio = { version = "1", features = ["full"] }
-tokio-util = "0.7"
 uuid = { version = "1", features = ["v4"] }
+futures = { version = "0.3", default-features = false }
