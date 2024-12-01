@@ -33,6 +33,7 @@ async fn main() {
 
 async fn handle_upload(data: warp::multipart::FormData) -> Result<impl Reply, Rejection> {
     let mut parts = data.into_stream();
+    let mut out = String::new();
 
     while let Some(Ok(p)) = parts.next().await {
         let value = p
@@ -47,13 +48,13 @@ async fn handle_upload(data: warp::multipart::FormData) -> Result<impl Reply, Re
                 warp::reject::reject()
             })?;
 
-        let file_name = format!("./data/{}", Uuid::new_v4());
-        tokio::fs::write(&file_name, value).await.map_err(|e| {
+        let file_path = format!("data/{}", Uuid::new_v4());
+        tokio::fs::write(&file_path, value).await.map_err(|e| {
             eprintln!("{}", e);
             warp::reject::reject()
         })?;
-        println!("Created file: {}/data/{}", SITE, file_name);
+        out = format!("Created file: {}/{}", SITE, file_path);
     }
 
-    Ok("Pasted")
+    Ok(out)
 }
