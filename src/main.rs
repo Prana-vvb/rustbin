@@ -1,14 +1,13 @@
-use futures::{StreamExt, TryStreamExt};
 use bytes::BufMut;
-use warp::reply::Response;
+use futures::{StreamExt, TryStreamExt};
 use std::fs::File;
 use std::io::Read;
-use std::sync::{Arc, Mutex};
 use uuid::Uuid;
+use warp::reply::Response;
 use warp::{Filter, Rejection, Reply};
 
 const SITE: &str = "http://localhost:8080";
-const MAX_SIZE: u64 = 1 * 1024 * 1024;
+const MAX_SIZE: u64 = 1024 * 1024;
 
 #[tokio::main]
 async fn main() {
