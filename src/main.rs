@@ -1,7 +1,8 @@
 use futures::{StreamExt, TryStreamExt};
 use bytes::BufMut;
-use std::fs::{self, File};
-use std::io::{self, Write};
+use warp::reply::Response;
+use std::fs::File;
+use std::io::Read;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 use warp::{Filter, Rejection, Reply};
@@ -16,16 +17,16 @@ async fn main() {
         .and(warp::multipart::form().max_length(MAX_SIZE))
         .and_then(handle_upload);
 
-    //let disp = warp::get()
-    //    .and(warp::path!("data" / String))
-    //    .and_then(handle_disp);
+    let disp = warp::get()
+        .and(warp::path!("data" / String))
+        .and_then(handle_disp);
 
     //Let the bots have all your data hehehe
     let robots_txt = warp::path("robots.txt").map(|| {
         warp::reply::with_header("User-agent: *\nDisallow: /", "Content-Type", "text/plain")
     });
 
-    let routes = upload.or(robots_txt);
+    let routes = upload.or(disp).or(robots_txt);
 
     let port = 8080;
     warp::serve(routes).run(([127, 0, 0, 1], port)).await;
@@ -57,4 +58,25 @@ async fn handle_upload(data: warp::multipart::FormData) -> Result<impl Reply, Re
     }
 
     Ok(out)
+}
+
+async fn handle_disp(id: String) -> Result<impl Reply, Rejection> {
+    let file_path = format!("data/{}", id);
+
+    match File::open(&file_path) {
+        Ok(mut file) => {
+            let mut data = Vec::new();
+            match file.read_to_end(&mut data) {
+                Ok(_) => Ok(Response::new(data.into())),
+                Err(e) => {
+                    eprintln!("{}", e);
+                    Err(warp::reject::reject())
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("{}", e);
+            Err(warp::reject::reject())
+        }
+    }
 }
