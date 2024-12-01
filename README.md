@@ -15,7 +15,15 @@ Inspired by [polarhive/pasta](https://github.com/polarhive/pasta)
 git clone --depth 1 https://github.com/Prana-vvb/rustbin.git
 ```
 
-CD to the clone and start the server using `Cargo`
+CD to the clone and build using `Cargo`
+```
+cd rustbin
+cargo build --release
+```
+
+And run the binary in `target/release`
+
+Or run an unoptimized version with
 ```
 cd rustbin
 cargo run
