@@ -1,6 +1,6 @@
 use bytes::BufMut;
 use futures::{StreamExt, TryStreamExt};
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::Read;
 use uuid::Uuid;
 use warp::reply::Response;
@@ -11,6 +11,8 @@ const MAX_SIZE: u64 = 1024 * 1024;
 
 #[tokio::main]
 async fn main() {
+    let _ = fs::create_dir_all("./data");
+
     let upload = warp::path("data")
         .and(warp::post())
         .and(warp::multipart::form().max_length(MAX_SIZE))
