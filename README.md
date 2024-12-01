@@ -4,7 +4,7 @@
 |---------|
  |   |   |
  | | | | |     Rustbin
- | | | | |     A simple pastebin written in Rust  
+ | | | | |     A simple pastebin written in Rust🦀
  | | | | |
  |_______|
 ```
