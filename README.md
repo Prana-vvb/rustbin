@@ -8,6 +8,8 @@
  | | | | |
  |_______|
 ```
+Inspired by [polarhive/pasta](https://github.com/polarhive/pasta)
+
 ## Install
 ```
 git clone --depth 1 https://github.com/Prana-vvb/rustbin.git
