@@ -39,3 +39,7 @@ Retrieve a file:
 ```
 curl "localhost:8080/data/<UID of paste>"
 ```
+
+## References
+- [What is a pastebin?](https://systemdesign.one/system-design-pastebin)
+- [Pasta](https://github.com/polarhive/pasta)
