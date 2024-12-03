@@ -32,7 +32,7 @@ cargo run
 ## Usage
 Paste a file:
 ```
-curl -F "file=@file.txt" "localhost:8080/data"
+curl -F "file=@filename" "localhost:8080/data"
 ```
 
 Retrieve a file:
