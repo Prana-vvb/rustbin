@@ -6,7 +6,7 @@ use uuid::Uuid;
 use warp::reply::Response;
 use warp::{Filter, Rejection, Reply};
 
-const SITE: &str = "http://localhost:8080";
+//const SITE: &str = "http://localhost:8080";
 const MAX_SIZE: u64 = 1024 * 1024;
 
 #[tokio::main]
@@ -55,7 +55,7 @@ async fn handle_upload(data: warp::multipart::FormData) -> Result<impl Reply, Re
             eprintln!("{}", e);
             warp::reject::reject()
         })?;
-        out = format!("Created file: {}/{}", SITE, file_path);
+        out = format!("Created file: {}\n", file_path);
     }
 
     Ok(out)
