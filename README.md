@@ -40,7 +40,7 @@ Retrieve a file:
 curl "localhost:8080/data/<UID of paste>"
 ```
 
-## Functional Requirements (As per [System Design](https://systemdesign.one/system-design-pastebin))
+## Functional Requirements (As per [System Design](https://systemdesign.one/system-design-pastebin#requirements))
 - [x] ~Online text storage service similar to pastebin.com or GitHub gist~
 - [x] ~A client (user) enters text data into the system known as a paste~
 - [x] ~A paste must not be greater than 1 MB in size~
