@@ -1,8 +1,8 @@
 use bytes::BufMut;
 use futures::{StreamExt, TryStreamExt};
+use short_uuid::ShortUuid;
 use std::fs::{self, File};
 use std::io::Read;
-use uuid::Uuid;
 use warp::reply::Response;
 use warp::{Filter, Rejection, Reply};
 
@@ -50,7 +50,7 @@ async fn handle_upload(data: warp::multipart::FormData) -> Result<impl Reply, Re
                 warp::reject::reject()
             })?;
 
-        let file_path = format!("data/{}", Uuid::new_v4());
+        let file_path = format!("data/{}", ShortUuid::generate());
         tokio::fs::write(&file_path, value).await.map_err(|e| {
             eprintln!("{}", e);
             warp::reject::reject()
