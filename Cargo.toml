@@ -8,4 +8,5 @@ warp = "0.3"
 tokio = { version = "1", features = ["full"] }
 futures = { version = "0.3", default-features = false }
 bytes = "1.9"
-short-uuid = "0.1.4"
+short-uuid = "0.2"
+local-ip-addr = "0.1"

@@ -1,12 +1,14 @@
 use bytes::BufMut;
 use futures::{StreamExt, TryStreamExt};
+use local_ip_addr::get_local_ip_address;
 use short_uuid::ShortUuid;
 use std::fs::{self, File};
 use std::io::Read;
+use std::net::Ipv4Addr;
 use warp::reply::Response;
 use warp::{Filter, Rejection, Reply};
 
-//const SITE: &str = "http://localhost:8080";
+const SITE: &str = "http://localhost:8080";
 const MAX_SIZE: u64 = 1024 * 1024;
 
 #[tokio::main]
@@ -27,10 +29,41 @@ async fn main() {
         warp::reply::with_header("User-agent: *\nDisallow: /", "Content-Type", "text/plain")
     });
 
-    let routes = upload.or(disp).or(robots_txt);
+    let cors = warp::cors()
+        .allow_origin(SITE)
+        .allow_methods(vec!["GET", "POST", "OPTIONS"])
+        .allow_headers(vec![
+            "Content-Type",
+            "Access-Control-Allow-Headers",
+            "Access-Control-Request-Method",
+            "Access-Control-Request-Headers",
+            "Origin",
+            "Accept",
+            "X-Requested-With",
+        ]);
+
+    let routes = upload.or(disp).or(robots_txt).with(cors);
 
     let port = 8080;
-    warp::serve(routes).run(([127, 0, 0, 1], port)).await;
+    match get_local_ip_address() {
+        Ok(addr) => {
+            let ip: Result<Vec<u8>, _> = addr
+                .split('.')
+                .map(|segment| segment.parse::<u8>())
+                .collect();
+
+            match ip {
+                Ok(ip_parts) => {
+                    let ip_array = [ip_parts[0], ip_parts[1], ip_parts[2], ip_parts[3]];
+                    let ip = Ipv4Addr::from(ip_array);
+                    println!("Pastebin running at {:?}:{}", ip, port);
+                    warp::serve(routes).run((ip, port)).await;
+                }
+                Err(e) => println!("Failed to parse IP segments: {}", e),
+            }
+        }
+        Err(e) => println!("Error: {}", e),
+    };
 }
 
 async fn handle_upload(data: warp::multipart::FormData) -> Result<impl Reply, Rejection> {
