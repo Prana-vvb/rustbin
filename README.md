@@ -32,12 +32,12 @@ cargo run
 ## Usage
 Paste a file:
 ```
-curl -F "file=@filename" "localhost:8080/data"
+curl -F "file=@filename" "<Host IP>:8080/data"
 ```
 
 Retrieve a file:
 ```
-curl "localhost:8080/data/<UID of paste>"
+curl "<Host IP>:8080/data/<UID of paste>"
 ```
 
 ## Functional Requirements (As per [System Design](https://systemdesign.one/system-design-pastebin#requirements))
