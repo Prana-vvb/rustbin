@@ -59,10 +59,10 @@ async fn main() {
                     println!("Pastebin running at {:?}:{}", ip, port);
                     warp::serve(routes).run((ip, port)).await;
                 }
-                Err(e) => println!("Failed to parse IP segments: {}", e),
+                Err(e) => eprintln!("Failed to parse IP segments: {}", e),
             }
         }
-        Err(e) => println!("Error: {}", e),
+        Err(e) => eprintln!("Error: {}", e),
     };
 }
 
