@@ -1,18 +1,24 @@
-use bytes::BufMut;
 use futures::{StreamExt, TryStreamExt};
-use local_ip_addr::get_local_ip_address;
 use short_uuid::ShortUuid;
-use tokio::fs::{self, File};
-use tokio::io::AsyncReadExt;
+use std::env;
+use tokio::fs::File;
+use tokio_util::io::{ReaderStream, StreamReader};
 use warp::reply::Response;
 use warp::{Filter, Rejection, Reply};
 
-const SITE: &str = "http://0.0.0.0:8080";
 const MAX_SIZE: u64 = 1024 * 1024;
+static CONCURRENCY_LIMIT: std::sync::LazyLock<tokio::sync::Semaphore> =
+    std::sync::LazyLock::new(|| tokio::sync::Semaphore::new(400));
 
 #[tokio::main]
 async fn main() {
-    let _ = fs::create_dir_all("./data").await;
+    let _ = std::fs::create_dir_all("./data");
+    let allowed_origin =
+        env::var("CORS_ORIGIN").unwrap_or_else(|_| "http://127.0.0.1:8080".to_string());
+    let port: u16 = env::var("PORT")
+        .unwrap_or_else(|_| "8080".to_string())
+        .parse()
+        .expect("PORT must be a number");
 
     let upload = warp::path("data")
         .and(warp::post())
@@ -29,7 +35,7 @@ async fn main() {
     });
 
     let cors = warp::cors()
-        .allow_origin(SITE)
+        .allow_origin(allowed_origin.as_str())
         .allow_methods(vec!["GET", "POST", "OPTIONS"])
         .allow_headers(vec![
             "Content-Type",
@@ -43,37 +49,56 @@ async fn main() {
 
     let routes = upload.or(disp).or(robots_txt).with(cors);
 
-    let port = 8080;
-    if let Ok(ip_str) = get_local_ip_address() {
-        if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
-            println!("Pastebin running at {}:{}", ip, port);
-            warp::serve(routes).run((ip, port)).await;
-        }
-    }
+    println!(
+        "Pastebin running on port {} allowing CORS for {}",
+        port, allowed_origin
+    );
+    warp::serve(routes).run(([0, 0, 0, 0], port)).await;
 }
 
 async fn handle_upload(data: warp::multipart::FormData) -> Result<impl Reply, Rejection> {
+    let _permit = CONCURRENCY_LIMIT.acquire().await.unwrap();
+
     let mut parts = data;
     let mut out = String::new();
 
     while let Some(Ok(p)) = parts.next().await {
-        let value = p
-            .stream()
-            .try_fold(Vec::new(), |mut vec, data| {
-                vec.put(data);
-                async move { Ok(vec) }
-            })
-            .await
-            .map_err(|e| {
-                eprintln!("{}", e);
-                warp::reject::reject()
-            })?;
+        let mut file_path;
+        let mut id;
+        let mut file;
 
-        let file_path = format!("data/{}", ShortUuid::generate());
-        tokio::fs::write(&file_path, value).await.map_err(|e| {
-            eprintln!("{}", e);
-            warp::reject::reject()
-        })?;
+        loop {
+            id = ShortUuid::generate().to_string();
+            file_path = format!("data/{}", id);
+
+            match tokio::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&file_path)
+                .await
+            {
+                Ok(f) => {
+                    file = f;
+                    break;
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                    continue;
+                }
+                Err(e) => {
+                    eprintln!("File creation error: {}", e);
+                    return Err(warp::reject::reject());
+                }
+            }
+        }
+
+        let io_stream = p.stream().map_err(std::io::Error::other);
+        let mut reader = StreamReader::new(io_stream);
+
+        if let Err(e) = tokio::io::copy(&mut reader, &mut file).await {
+            eprintln!("File write error: {}", e);
+            return Err(warp::reject::reject());
+        }
+
         out.push_str(&format!("Created file: {}\n", file_path));
     }
 
@@ -81,22 +106,23 @@ async fn handle_upload(data: warp::multipart::FormData) -> Result<impl Reply, Re
 }
 
 async fn handle_disp(id: String) -> Result<impl Reply, Rejection> {
-    if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    let _permit = CONCURRENCY_LIMIT.acquire().await.unwrap();
+
+    if !id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
         eprintln!("Security Warning: Invalid ID format attempted: {}", id);
-        return Err(warp::reject::not_found()); 
+        return Err(warp::reject::not_found());
     }
     let file_path = format!("data/{}", id);
 
     match File::open(&file_path).await {
-        Ok(mut file) => {
-            let mut data = Vec::new();
-            match file.read_to_end(&mut data).await {
-                Ok(_) => Ok(Response::new(data.into())),
-                Err(e) => {
-                    eprintln!("{}", e);
-                    Err(warp::reject::reject())
-                }
-            }
+        Ok(file) => {
+            let stream = ReaderStream::new(file);
+            let body = warp::hyper::Body::wrap_stream(stream);
+
+            Ok(Response::new(body))
         }
         Err(e) => {
             eprintln!("{}", e);

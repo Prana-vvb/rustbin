@@ -9,4 +9,4 @@ tokio = { version = "1", features = ["full"] }
 futures = { version = "0.3", default-features = false }
 bytes = "1.9"
 short-uuid = "0.2"
-local-ip-addr = "0.1"
+tokio-util = { version = "0.7", features = ["io"] }
