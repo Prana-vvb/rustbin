@@ -2,18 +2,17 @@ use bytes::BufMut;
 use futures::{StreamExt, TryStreamExt};
 use local_ip_addr::get_local_ip_address;
 use short_uuid::ShortUuid;
-use std::fs::{self, File};
-use std::io::Read;
-use std::net::Ipv4Addr;
+use tokio::fs::{self, File};
+use tokio::io::AsyncReadExt;
 use warp::reply::Response;
 use warp::{Filter, Rejection, Reply};
 
-const SITE: &str = "http://localhost:8080";
+const SITE: &str = "http://0.0.0.0:8080";
 const MAX_SIZE: u64 = 1024 * 1024;
 
 #[tokio::main]
 async fn main() {
-    let _ = fs::create_dir_all("./data");
+    let _ = fs::create_dir_all("./data").await;
 
     let upload = warp::path("data")
         .and(warp::post())
@@ -45,29 +44,16 @@ async fn main() {
     let routes = upload.or(disp).or(robots_txt).with(cors);
 
     let port = 8080;
-    match get_local_ip_address() {
-        Ok(addr) => {
-            let ip: Result<Vec<u8>, _> = addr
-                .split('.')
-                .map(|segment| segment.parse::<u8>())
-                .collect();
-
-            match ip {
-                Ok(ip_parts) => {
-                    let ip_array = [ip_parts[0], ip_parts[1], ip_parts[2], ip_parts[3]];
-                    let ip = Ipv4Addr::from(ip_array);
-                    println!("Pastebin running at {:?}:{}", ip, port);
-                    warp::serve(routes).run((ip, port)).await;
-                }
-                Err(e) => eprintln!("Failed to parse IP segments: {}", e),
-            }
+    if let Ok(ip_str) = get_local_ip_address() {
+        if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
+            println!("Pastebin running at {}:{}", ip, port);
+            warp::serve(routes).run((ip, port)).await;
         }
-        Err(e) => eprintln!("Error: {}", e),
-    };
+    }
 }
 
 async fn handle_upload(data: warp::multipart::FormData) -> Result<impl Reply, Rejection> {
-    let mut parts = data.into_stream();
+    let mut parts = data;
     let mut out = String::new();
 
     while let Some(Ok(p)) = parts.next().await {
@@ -88,19 +74,23 @@ async fn handle_upload(data: warp::multipart::FormData) -> Result<impl Reply, Re
             eprintln!("{}", e);
             warp::reject::reject()
         })?;
-        out = format!("Created file: {}\n", file_path);
+        out.push_str(&format!("Created file: {}\n", file_path));
     }
 
     Ok(out)
 }
 
 async fn handle_disp(id: String) -> Result<impl Reply, Rejection> {
+    if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        eprintln!("Security Warning: Invalid ID format attempted: {}", id);
+        return Err(warp::reject::not_found()); 
+    }
     let file_path = format!("data/{}", id);
 
-    match File::open(&file_path) {
+    match File::open(&file_path).await {
         Ok(mut file) => {
             let mut data = Vec::new();
-            match file.read_to_end(&mut data) {
+            match file.read_to_end(&mut data).await {
                 Ok(_) => Ok(Response::new(data.into())),
                 Err(e) => {
                     eprintln!("{}", e);
