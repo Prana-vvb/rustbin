@@ -3,8 +3,8 @@ import { check } from 'k6';
 import { FormData } from 'https://jslib.k6.io/formdata/0.0.2/index.js';
 
 export const options = {
-    vus: 400,
-    duration: '10s',
+    vus: 500,
+    duration: '60s',
 };
 
 const dummyFile = new ArrayBuffer(1024 * 100);

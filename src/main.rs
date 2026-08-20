@@ -8,7 +8,7 @@ use warp::{Filter, Rejection, Reply};
 
 const MAX_SIZE: u64 = 1024 * 1024;
 static CONCURRENCY_LIMIT: std::sync::LazyLock<tokio::sync::Semaphore> =
-    std::sync::LazyLock::new(|| tokio::sync::Semaphore::new(400));
+    std::sync::LazyLock::new(|| tokio::sync::Semaphore::new(2000));
 
 #[tokio::main]
 async fn main() {
