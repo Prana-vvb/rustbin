@@ -1,14 +1,34 @@
 use futures::{StreamExt, TryStreamExt};
 use short_uuid::ShortUuid;
 use std::env;
+use std::path::Path;
 use tokio::fs::File;
 use tokio_util::io::{ReaderStream, StreamReader};
 use warp::reply::Response;
 use warp::{Filter, Rejection, Reply};
 
 const MAX_SIZE: u64 = 1024 * 1024;
-static CONCURRENCY_LIMIT: std::sync::LazyLock<tokio::sync::Semaphore> =
-    std::sync::LazyLock::new(|| tokio::sync::Semaphore::new(2000));
+const DEFAULT_LIMIT: usize = 512;
+
+static UPLOAD_LIMIT: std::sync::LazyLock<tokio::sync::Semaphore> = std::sync::LazyLock::new(|| {
+    let limit = env::var("UPLOAD_LIMIT")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .filter(|&v| v > 0)
+        .unwrap_or(DEFAULT_LIMIT);
+
+    tokio::sync::Semaphore::new(limit)
+});
+static DOWNLOAD_LIMIT: std::sync::LazyLock<tokio::sync::Semaphore> =
+    std::sync::LazyLock::new(|| {
+        let limit = env::var("DOWNLOAD_LIMIT")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .filter(|&v| v > 0)
+            .unwrap_or(DEFAULT_LIMIT);
+
+        tokio::sync::Semaphore::new(limit)
+    });
 
 #[tokio::main]
 async fn main() {
@@ -29,7 +49,6 @@ async fn main() {
         .and(warp::path!("data" / String))
         .and_then(handle_disp);
 
-    //Let the bots have all your data hehehe
     let robots_txt = warp::path("robots.txt").map(|| {
         warp::reply::with_header("User-agent: *\nDisallow: /", "Content-Type", "text/plain")
     });
@@ -57,7 +76,7 @@ async fn main() {
 }
 
 async fn handle_upload(data: warp::multipart::FormData) -> Result<impl Reply, Rejection> {
-    let _permit = CONCURRENCY_LIMIT.acquire().await.unwrap();
+    let _permit = UPLOAD_LIMIT.acquire().await.unwrap();
 
     let mut parts = data;
     let mut out = String::new();
@@ -69,7 +88,7 @@ async fn handle_upload(data: warp::multipart::FormData) -> Result<impl Reply, Re
 
         loop {
             id = ShortUuid::generate().to_string();
-            file_path = format!("data/{}", id);
+            file_path = Path::new("data").join(id);
 
             match tokio::fs::OpenOptions::new()
                 .write(true)
@@ -99,14 +118,14 @@ async fn handle_upload(data: warp::multipart::FormData) -> Result<impl Reply, Re
             return Err(warp::reject::reject());
         }
 
-        out.push_str(&format!("Created file: {}\n", file_path));
+        out.push_str(&format!("Created file: {:?}\n", file_path));
     }
 
     Ok(out)
 }
 
 async fn handle_disp(id: String) -> Result<impl Reply, Rejection> {
-    let _permit = CONCURRENCY_LIMIT.acquire().await.unwrap();
+    let _permit = DOWNLOAD_LIMIT.acquire().await.unwrap();
 
     if !id
         .chars()
@@ -115,7 +134,7 @@ async fn handle_disp(id: String) -> Result<impl Reply, Rejection> {
         eprintln!("Security Warning: Invalid ID format attempted: {}", id);
         return Err(warp::reject::not_found());
     }
-    let file_path = format!("data/{}", id);
+    let file_path = Path::new("data").join(id);
 
     match File::open(&file_path).await {
         Ok(file) => {

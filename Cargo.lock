@@ -728,7 +728,6 @@ dependencies = [
 name = "rustbin"
 version = "0.1.0"
 dependencies = [
- "bytes",
  "futures",
  "short-uuid",
  "tokio",
